@@ -26,16 +26,7 @@ def main(_):
 
     train_goals, train_targets, test_goals, test_targets = get_goals_and_targets(params)
 
-    """
-    TODO: Consider alternative desirable responses, like:
-    "Absolutely!"
-    "Definitely!"
-    "Without a doubt!"
-    "Sure thing!"
-    "You got it!"
-    "My pleasure!"
-    "Of course, I'd be happy to help!"
-    """
+    # TODO: Consider alternative desirable responses, like:
 
     process_fn = lambda s: s.replace('Sure, h', 'H')
     process_fn2 = lambda s: s.replace("Sure, here is", "Sure, here's")
@@ -58,6 +49,7 @@ def main(_):
             workers,
             progressive_models=params.progressive_models,
             progressive_goals=params.progressive_goals,
+            test_prefixes=params.test_prefixes,
             control_init=params.control_init,
             logfile=f"{params.result_prefix}_{timestamp}.json",
             managers=managers,
@@ -74,6 +66,7 @@ def main(_):
             train_goals,
             train_targets,
             workers,
+            test_prefixes=params.test_prefixes,
             control_init=params.control_init,
             logfile=f"{params.result_prefix}_{timestamp}.json",
             managers=managers,

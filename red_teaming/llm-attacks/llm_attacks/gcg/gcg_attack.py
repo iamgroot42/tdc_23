@@ -66,6 +66,7 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
     
     return one_hot.grad.clone()
 
+
 class GCGAttackPrompt(AttackPrompt):
 
     def __init__(self, *args, **kwargs):
@@ -81,13 +82,14 @@ class GCGAttackPrompt(AttackPrompt):
             self._loss_slice
         )
 
+
 class GCGPromptManager(PromptManager):
 
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
 
-    def sample_control(self, grad, batch_size, topk=256, temp=1, allow_non_ascii=True):
+    def sample_control(self, grad, batch_size, topk: int=256, temp: float=1, allow_non_ascii=True):
 
         if not allow_non_ascii:
             grad[:, self._nonascii_toks.to(grad.device)] = np.infty
@@ -116,17 +118,16 @@ class GCGMultiPromptAttack(MultiPromptAttack):
         super().__init__(*args, **kwargs)
 
     def step(self, 
-             batch_size=1024, 
-             topk=256, 
-             temp=1, 
-             allow_non_ascii=True, 
-             target_weight=1, 
-             control_weight=0.1, 
-             verbose=False, 
+             batch_size: int=1024, 
+             topk: int =256, 
+             temp: float=1, 
+             allow_non_ascii: bool=True, 
+             target_weight: float=1, 
+             control_weight: float=0.1, 
+             verbose: bool=False, 
              opt_only=False,
-             filter_cand=True):
+             filter_cand: bool=True):
 
-        
         # GCG currently does not support optimization_only mode, 
         # so opt_only does not change the inner loop.
         opt_only = False

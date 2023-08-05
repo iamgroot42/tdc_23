@@ -28,6 +28,7 @@ class NpEncoder(json.JSONEncoder):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
 
+
 def get_embedding_layer(model):
     if isinstance(model, GPTJForCausalLM) or isinstance(model, GPT2LMHeadModel):
         return model.transformer.wte
@@ -37,6 +38,7 @@ def get_embedding_layer(model):
         return model.base_model.embed_in
     else:
         raise ValueError(f"Unknown model type: {type(model)}")
+
 
 def get_embedding_matrix(model):
     if isinstance(model, GPTJForCausalLM) or isinstance(model, GPT2LMHeadModel):
@@ -48,6 +50,7 @@ def get_embedding_matrix(model):
     else:
         raise ValueError(f"Unknown model type: {type(model)}")
 
+
 def get_embeddings(model, input_ids):
     if isinstance(model, GPTJForCausalLM) or isinstance(model, GPT2LMHeadModel):
         return model.transformer.wte(input_ids).half()
@@ -57,6 +60,7 @@ def get_embeddings(model, input_ids):
         return model.base_model.embed_in(input_ids).half()
     else:
         raise ValueError(f"Unknown model type: {type(model)}")
+
 
 def get_nonascii_toks(tokenizer, device='cpu'):
 
@@ -78,6 +82,7 @@ def get_nonascii_toks(tokenizer, device='cpu'):
         ascii_toks.append(tokenizer.unk_token_id)
     
     return torch.tensor(ascii_toks, device=device)
+
 
 class AttackPrompt(object):
     """
@@ -534,6 +539,7 @@ class PromptManager(object):
     def disallowed_toks(self):
         return self._nonascii_toks
 
+
 class MultiPromptAttack(object):
     """A class used to manage multiple prompt-based attacks."""
     def __init__(self, 
@@ -796,17 +802,10 @@ class MultiPromptAttack(object):
         with open(self.logfile, 'r') as f:
             log = json.load(f)
 
-        # Have a clear separation between different prompts
-        if new_entry:
-            log['controls'].append([])
-            log['losses'].append([])
-            log['runtimes'].append([])
-            log['tests'].append([])
-
-        log['controls'][-1].append(control)
-        log['losses'][-1].append(loss)
-        log['runtimes'][-1].append(runtime)
-        log['tests'][-1].append(tests)
+        log['controls'].append(control)
+        log['losses'].append(loss)
+        log['runtimes'].append(runtime)
+        log['tests'].append(tests)
 
         with open(self.logfile, 'w') as f:
             json.dump(log, f, indent=4, cls=NpEncoder)
@@ -823,6 +822,7 @@ class MultiPromptAttack(object):
                 f"control='{control}'\n"
                 f"====================================================\n"
             ))
+
 
 class ProgressiveMultiPromptAttack(object):
     """A class used to manage multiple progressive prompt-based attacks."""
@@ -1064,6 +1064,7 @@ class ProgressiveMultiPromptAttack(object):
 
         return self.control, step
 
+
 class IndividualPromptAttack(object):
     """ A class used to manage attacks for each target string / behavior."""
     def __init__(self, 
@@ -1267,6 +1268,7 @@ class IndividualPromptAttack(object):
             )
 
         return self.control, n_steps
+
 
 class EvaluateAttack(object):
     """A class used to evaluate an attack using generated json file of results."""
@@ -1504,6 +1506,7 @@ class ModelWorker(object):
         self.tasks.put((deepcopy(ob), fn, args, kwargs))
         return self
 
+
 def get_workers(params, eval: bool=False):
     tokenizers = []
     for i in range(len(params.tokenizer_paths)):
@@ -1518,7 +1521,7 @@ def get_workers(params, eval: bool=False):
         if 'guanaco' in params.tokenizer_paths[i]:
             tokenizer.eos_token_id = 2
             tokenizer.unk_token_id = 0
-        if 'llama-2' in params.tokenizer_paths[i] or 'Llama-2' in params.tokenizer_paths[i]:
+        if 'llama-2' in params.tokenizer_paths[i].lower():
             tokenizer.pad_token = tokenizer.unk_token
             tokenizer.padding_side = 'left'
         if 'falcon' in params.tokenizer_paths[i]:
@@ -1562,6 +1565,7 @@ def get_workers(params, eval: bool=False):
     print('Loaded {} test models'.format(len(workers) - num_train_models))
 
     return workers[:num_train_models], workers[num_train_models:]
+
 
 def get_goals_and_targets(params):
 
