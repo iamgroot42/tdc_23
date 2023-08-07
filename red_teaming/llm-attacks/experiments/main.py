@@ -14,25 +14,26 @@ _CONFIG = config_flags.DEFINE_config_file('config')
 def dynamic_import(module):
     return importlib.import_module(module)
 
+
 def main(_):
 
     mp.set_start_method('spawn')
 
     params = _CONFIG.value
 
+    # = ProgressiveMultiPromptAttack
     attack_lib = dynamic_import(f'llm_attacks.{params.attack}')
 
     print(params)
 
     train_goals, train_targets, test_goals, test_targets = get_goals_and_targets(params)
 
-    # TODO: Consider alternative desirable responses, like:
-
     process_fn = lambda s: s.replace('Sure, h', 'H')
     process_fn2 = lambda s: s.replace("Sure, here is", "Sure, here's")
     train_targets = [process_fn(t) if np.random.random() < 0.5 else process_fn2(t) for t in train_targets]
     test_targets = [process_fn(t) if np.random.random() < 0.5 else process_fn2(t) for t in test_targets]
 
+    # Load models, tokenizers
     workers, test_workers = get_workers(params)
 
     managers = {
@@ -78,6 +79,7 @@ def main(_):
             mpa_batch_size=params.batch_size,
             mpa_n_steps=params.n_steps,
         )
+
     attack.run(
         n_steps=params.n_steps,
         batch_size=params.batch_size, 

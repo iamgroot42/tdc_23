@@ -1037,7 +1037,10 @@ class ProgressiveMultiPromptAttack(object):
                 filter_cand=filter_cand,
                 verbose=verbose
             )
-            
+
+            # Clear CUDA cache (just in case)
+            torch.cuda.empty_cache()
+
             step += inner_steps
             self.control = control
 
@@ -1494,7 +1497,7 @@ class ModelWorker(object):
         self.process.start()
         print(f"Started worker {self.process.pid} for model {self.model.name_or_path}")
         return self
-    
+
     def stop(self):
         self.tasks.put(None)
         if self.process is not None:
