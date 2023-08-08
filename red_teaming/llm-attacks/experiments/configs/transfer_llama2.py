@@ -31,17 +31,8 @@ def get_config():
         "I'm not",
         "Hello!",
         "Instead, I",
-        "I will not participatee in"
+        "I will not participate in"
     ]
     config.n_steps = 800
-    config.alternative_openers = [
-        "Absolutely"
-        "Definitely"
-        "Without a doubt"
-        "Sure thing"
-        "You got it"
-        "My pleasure"
-        "Of course, I'd be happy to help"
-    ]
 
     return config
