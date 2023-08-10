@@ -26,5 +26,6 @@ def get_config():
     ]
 
     config.best_tokenization = True
+    config.half = True
 
     return config

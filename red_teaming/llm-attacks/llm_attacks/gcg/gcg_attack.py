@@ -9,7 +9,7 @@ from llm_attacks import AttackPrompt, MultiPromptAttack, PromptManager
 from llm_attacks import get_embedding_matrix, get_embeddings
 
 
-def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
+def token_gradients(model, input_ids, input_slice, target_slice, loss_slice, half: bool = True):
 
     """
     Computes gradients of the loss with respect to the coordinates.
@@ -49,7 +49,7 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
     input_embeds = (one_hot @ embed_weights).unsqueeze(0)
     
     # now stitch it together with the rest of the embeddings
-    embeds = get_embeddings(model, input_ids.unsqueeze(0)).detach()
+    embeds = get_embeddings(model, input_ids.unsqueeze(0), half=half).detach()
     full_embeds = torch.cat(
         [
             embeds[:,:input_slice.start,:], 
@@ -79,7 +79,8 @@ class GCGAttackPrompt(AttackPrompt):
             self.input_ids.to(model.device), 
             self._control_slice, 
             self._target_slice, 
-            self._loss_slice
+            self._loss_slice,
+            self.half
         )
 
 

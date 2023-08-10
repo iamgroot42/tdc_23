@@ -98,6 +98,7 @@ def main(_):
             mpa_lr=params.lr,
             mpa_batch_size=params.batch_size,
             mpa_n_steps=params.n_steps,
+            half=params.half
         )
     else:
         attack = attack_lib.IndividualPromptAttack(
@@ -115,6 +116,7 @@ def main(_):
             mpa_lr=params.lr,
             mpa_batch_size=params.batch_size,
             mpa_n_steps=params.n_steps,
+            half=params.half
         )
 
     attack.run(
