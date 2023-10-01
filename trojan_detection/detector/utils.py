@@ -34,7 +34,7 @@ class DataProcessor(Dataset):
         encodings (Dict): Tokenized and encoded version of input texts.
     """
     
-    def __init__(self, texts, labels):
+    def __init__(self, tokenized_inputs, labels):
         """
         Initializes the TextClassificationDataset object.
         
@@ -42,10 +42,8 @@ class DataProcessor(Dataset):
             texts (List[str]): A list of input texts.
             labels (List[int]): A list of encoded label values corresponding to the input texts.
         """
-        self.texts = texts
+        self.tokenized_inputs = tokenized_inputs
         self.labels = labels
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        self.encodings = self.tokenizer(texts, truncation=True, padding=True, max_length=256)
         
     def __getitem__(self, idx):
         """
@@ -57,8 +55,9 @@ class DataProcessor(Dataset):
         Returns:
             Dict: A dictionary containing the tokenized encodings and the label for the specified index.
         """
-        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
-        item['labels'] = torch.tensor(self.labels[idx])
+        item = {'input_ids': torch.tensor(self.tokenized_inputs['input_ids'][idx]),
+                'attention_mask': torch.tensor(self.tokenized_inputs['attention_mask'][idx]),
+                'labels': torch.tensor(self.labels[idx])}
         return item
     
     def __len__(self):
@@ -69,15 +68,3 @@ class DataProcessor(Dataset):
             int: The number of items in the dataset.
         """
         return len(self.labels)
-    
-    def get_raw_item(self, idx):
-        """
-        Returns the original text and label of the item at the specified index without tensor conversion.
-        
-        Args:
-            idx (int): The index of the item to return.
-            
-        Returns:
-            Tuple[str, int]: A tuple containing the original text and the corresponding label at the specified index.
-        """
-        return self.texts[idx], self.labels[idx]

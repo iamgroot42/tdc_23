@@ -7,18 +7,19 @@ from sklearn.model_selection import train_test_split
 from detector.utils import *
 
 def main():
-    data_dict = json_load_data("./trojan_detection/data/dev/base/trojan_specifications_train_dev_base.json")
-    data = [(trigger, target) for target, triggers in data_dict.items() for trigger in triggers]
+    data_dict = json_load_data('trojan_detection/data/dev/base/trojan_specifications_train_dev_base.json')
+    data = []
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     
-    # Encode Labels
+    for target, triggers in data_dict.items():
+        for trigger in triggers:
+            data.append((tokenizer(trigger, truncation=True, padding='max_length', max_length=256), target))
+    
     label_encoder = LabelEncoder()
-    labels = [item[1] for item in data]
-    encoded_labels = label_encoder.fit_transform(labels)
+    labels = label_encoder.fit_transform([item[1] for item in data])
+    tokenized_inputs = tokenizer.batch_encode_plus([item[0]['input_ids'] for item in data], padding=True, return_tensors='pt')
     
-    # Train-Test Split
-    X_train, X_test, y_train, y_test = train_test_split([item[0] for item in data], encoded_labels, test_size=0.2, random_state=42)
-    
-    # Create Datasets
+    X_train, X_test, y_train, y_test = train_test_split(tokenized_inputs, labels, test_size=0.2, random_state=42)
     train_dataset = DataProcessor(X_train, y_train)
     test_dataset = DataProcessor(X_test, y_test)
     
