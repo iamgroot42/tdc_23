@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from detector.utils import *
 
 def main():
-    data_dict = json_load_data('path_to_your_file.json')
+    data_dict = json_load_data('trojan_detection/data/dev/base/trojan_specifications_train_dev_base.json')
     data = []
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     
