@@ -13,13 +13,16 @@ def main():
     
     for target, triggers in data_dict.items():
         for trigger in triggers:
-            data.append((tokenizer(trigger, truncation=True, padding='max_length', max_length=256), target))
+            # Consider 'target' and 'trigger' as two different sequences, concatenate them to create pairs
+            encoded_pair = tokenizer(trigger + ' [SEP] ' + target, truncation=True, padding='max_length', max_length=512)
+            data.append((encoded_pair, target))
     
     label_encoder = LabelEncoder()
     labels = label_encoder.fit_transform([item[1] for item in data])
-    tokenized_inputs = tokenizer.batch_encode_plus([item[0]['input_ids'] for item in data], padding=True, return_tensors='pt')
     
-    X_train, X_test, y_train, y_test = train_test_split(tokenized_inputs, labels, test_size=0.2, random_state=42)
+    tokenized_pairs = tokenizer.batch_encode_plus([(item[0]['input_ids']) for item in data], padding=True, return_tensors='pt')
+    
+    X_train, X_test, y_train, y_test = train_test_split(tokenized_pairs, labels, test_size=0.2, random_state=42)
     train_dataset = DataProcessor(X_train, y_train)
     test_dataset = DataProcessor(X_test, y_test)
     
