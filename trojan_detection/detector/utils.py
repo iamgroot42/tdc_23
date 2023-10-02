@@ -1,4 +1,6 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import json
 from torch.utils.data import DataLoader, Dataset
 from transformers import BertTokenizer, BertForSequenceClassification, AdamW
@@ -68,3 +70,37 @@ class DataProcessor(Dataset):
             int: The number of items in the dataset.
         """
         return len(self.labels)
+    
+class CustomLoss(nn.Module):
+    """CustomLoss calculates multi-label cross-entropy loss.
+
+    Attributes:
+        outputs (int): The number of output nodes in a network.
+    """
+
+    def __init__(self, outputs):
+        """
+        Args:
+            outputs (int): The number of output nodes in the network.
+        """
+        super(CustomLoss, self).__init__()
+        self.outputs = outputs
+    
+    def forward(self, y_true, y_logit):
+        """Calculates the custom loss between true and predicted values.
+
+        Args:
+            y_true (torch.Tensor): True labels, a tensor of shape (batch_size, num_classes)
+            y_logit (torch.Tensor): Predicted labels, a tensor of shape (batch_size, num_classes)
+        """
+        loss = torch.tensor(0.0, requires_grad=True)
+        y_true = y_true.float()
+
+        epsilon = 1e-15 # to prevent log(0)
+
+        for i in range(self.outputs):
+            first_term = y_true[:, i] * torch.log(y_logit[:, i] + epsilon)
+            second_term = (1 - y_true[:, i]) * torch.log(1 - y_logit[:, i] + epsilon)
+            loss -= (first_term + second_term).sum()
+
+        return loss
