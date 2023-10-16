@@ -20,7 +20,7 @@ SETTINGS = {
     }
 }
 
-def main(setting: str = "base"):
+def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int = 20):
     # Load model and tokenizer
     tokenizer = AutoTokenizer.from_pretrained(SETTINGS[setting]["hf"], padding_side='left')
     tokenizer.add_special_tokens({'pad_token': '<|endoftext|>'})
@@ -48,15 +48,19 @@ def main(setting: str = "base"):
             continue
         triggers = generate_alternative_prompts(x, all_known_triggers=all_known_triggers,
                                                 model=model, tokenizer=tokenizer,
-                                                batch_size=SETTINGS[setting]["batch_size"])
+                                                batch_size=SETTINGS[setting]["batch_size"],
+                                                random_start_mixup=random_start_mixup,
+                                                n_iters=n_iters)
         accurate_trojans[x] = triggers
 
         # Also write to file at end of it all (to keep track of progress via notebook)
-        with open(f"predictions_{setting}.json", 'w') as f:
+        with open(f"predictions_{setting}_{random_start_mixup}_{n_iters}.json", 'w') as f:
             json.dump(accurate_trojans, f, indent=4)
 
 
 if __name__ == "__main__":
     import sys
     setting = sys.argv[1]
-    main(setting)
+    random_start_mixup = bool(int(sys.argv[2]))
+    n_iters = int(sys.argv[3])
+    main(setting, random_start_mixup)

@@ -161,7 +161,7 @@ def generate_prompts(model, tokenizer,
                                 tokenizer,
                                 adv_suffix,
                                 max_new=max_new)
-            model_output = model_output[:len(target)]
+            model_output = model_output[-len(target):]
 
 
         # Create a dynamic plot for the loss.
@@ -190,26 +190,28 @@ def generate_prompts(model, tokenizer,
 def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                  model, tokenizer,
                                  n_tries: int = 100,
-                                 n_iters: int = 15,
+                                 n_iters: int = 20,
                                  pct: float = 0.5,
-                                 batch_size: int = 128):
+                                 batch_size: int = 128,
+                                 random_start_mixup: bool = False):
     if n_tries < 20:
         raise ValueError("Must have at least 20 trials")
     triggers, successes = [], []
+    s, nq = 0, 0
+    triggers = []
+    random_pick = np.random.choice(all_known_triggers, n_tries)
+
     for i in tqdm(range(n_tries)):
-        found_starting_candidate = False
-        while not found_starting_candidate:
-            # Pick a random start string out of all known triggers
-            random_pick = np.random.choice(all_known_triggers)
+        adv_string_init = random_pick[i]
+        if random_start_mixup:
+            # Randomly swap out pct% of its words with random words from the target
+            adv_string_init = smart_swap_init(target, adv_string_init, pct=pct)
 
-            # Randomly swao out pct% of its words with random words from the target
-            adv_string_init = smart_swap_init(target, random_pick, pct=pct)
+        # Make sure it is at least 5, at most 100 tokens
+        n_tokens = len(tokenizer(adv_string_init).input_ids)
+        if n_tokens < 5 or n_tokens > 100:
+            continue
 
-            # Make sure it is at least 5, at most 100 tokens
-            n_tokens = len(tokenizer(adv_string_init).input_ids)
-            if n_tokens >=5 and n_tokens <= 100:
-                found_starting_candidate = True
-        
         # Attempt generation with GCG
         suffixes, targets, success = generate_prompts(model, tokenizer,
                                                       adv_string_init, target, n_iters, plot=False,
