@@ -1,2 +1,6 @@
 __pycache__/*
 baselines/__pycache__/*
+
+submissions/*
+logs/*
+*.json
