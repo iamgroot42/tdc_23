@@ -19,13 +19,15 @@ SETTINGS = {
         "hf": "TDC2023/trojan-base-pythia-1.4b",
         "targets": "./data/dev/base/trojan_specifications_train_dev_base.json",
         "batch_size": 512,
-        "generated_trojans": "./known_working_trojans_base.json"
+        "generated_trojans": "./known_working_trojans_base.json",
+        "failed": "./failed_base.json",
     },
     "large": {
         "hf": "TDC2023/trojan-large-pythia-6.9b",
         "targets": "./data/dev/large/trojan_specifications_train_dev_large.json",
         "batch_size": 128,
-        "generated_trojans": "./known_working_trojans_large.json"
+        "generated_trojans": "./known_working_trojans_large.json",
+        "failed": "./failed_large.json",
     }
 }
 
@@ -203,7 +205,7 @@ def generate_prompts(model, tokenizer,
 
 def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                  model, tokenizer,
-                                 n_tries: int = 150,
+                                 n_tries: int = 100,
                                  n_iters: int = 20,
                                  pct: float = 0.5,
                                  batch_size: int = 128,
@@ -248,4 +250,4 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
         # If we don't have enough successful triggers, pick remaining from failed ones
         picked_triggers += triggers_failed[:20 - len(picked_triggers)]
     
-    return picked_triggers
+    return picked_triggers, triggers_failed
