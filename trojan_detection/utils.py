@@ -14,6 +14,21 @@ from llm_attacks.minimal_gcg.string_utils import SuffixManager, load_conversatio
 from llm_attacks import get_nonascii_toks
 
 
+SETTINGS = {
+    "base": {
+        "hf": "TDC2023/trojan-base-pythia-1.4b",
+        "targets": "./data/dev/base/trojan_specifications_train_dev_base.json",
+        "batch_size": 512,
+        "generated_trojans": "./known_working_trojans_base.json"
+    },
+    "large": {
+        "hf": "TDC2023/trojan-large-pythia-6.9b",
+        "targets": "./data/dev/large/trojan_specifications_train_dev_large.json",
+        "batch_size": 128,
+        "generated_trojans": "./known_working_trojans_large.json"
+    }
+}
+
 def load_targets(path: str = "./data/dev/targets_test.json"):
     with open(path, 'r') as f:
         data = json.load(f)
@@ -182,26 +197,32 @@ def generate_prompts(model, tokenizer,
         # comment this to keep the optimization running for longer (to get a lower loss).
         if break_on_success and model_output == target:
             return suffixes, targets, True
-            break
 
     return suffixes, targets, False
 
 
 def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                  model, tokenizer,
-                                 n_tries: int = 100,
+                                 n_tries: int = 150,
                                  n_iters: int = 20,
                                  pct: float = 0.5,
                                  batch_size: int = 128,
-                                 random_start_mixup: bool = False):
+                                 random_start_mixup: bool = False,
+                                 known_triggers: List[str] = None):
     if n_tries < 20:
         raise ValueError("Must have at least 20 trials")
-    triggers, successes = [], []
     s, nq = 0, 0
-    triggers = []
-    random_pick = np.random.choice(all_known_triggers, n_tries)
+    triggers_successful, triggers_failed = [], []
+    random_pick = np.random.choice(all_known_triggers, n_tries, replace=False)
+
+    if known_triggers is not None:
+        triggers_successful = known_triggers
 
     for i in tqdm(range(n_tries)):
+        # Stop if we got 20 successful unique triggers
+        if len(set(triggers_successful)) == 20:
+            break
+
         adv_string_init = random_pick[i]
         if random_start_mixup:
             # Randomly swap out pct% of its words with random words from the target
@@ -217,13 +238,14 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                                       adv_string_init, target, n_iters, plot=False,
                                                       break_on_success=True, topk=1024,
                                                       batch_size=batch_size)
-        successes.append(success * 1)
-        triggers.append(suffixes[-1])
-        # Stop if we got 20 successful triggers
-        if np.sum(successes) == 20:
-            break
-    # Argsort and pick last 20 (so that we we at least cover successful generations)
-    order = np.argsort(successes)[-20:]
-    picked_triggers = [triggers[i] for i in order]
+        if success:
+            triggers_successful.append(suffixes[-1])
+        else:
+            triggers_failed.append(suffixes[-1])
+    
+    picked_triggers = triggers_successful
+    if len(picked_triggers) < 20:
+        # If we don't have enough successful triggers, pick remaining from failed ones
+        picked_triggers += triggers_failed[:20 - len(picked_triggers)]
+    
     return picked_triggers
-

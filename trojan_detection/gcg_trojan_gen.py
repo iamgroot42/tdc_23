@@ -3,22 +3,10 @@ import json
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch as ch
 from itertools import chain
+from tqdm import tqdm
 
-from utils import load_targets, generate_alternative_prompts
+from utils import load_targets, generate_alternative_prompts, SETTINGS
 
-
-SETTINGS = {
-    "base": {
-        "hf": "TDC2023/trojan-base-pythia-1.4b",
-        "targets": "./data/dev/base/trojan_specifications_train_dev_base.json",
-        "batch_size": 512
-    },
-    "large": {
-        "hf": "TDC2023/trojan-large-pythia-6.9b",
-        "targets": "./data/dev/large/trojan_specifications_train_dev_large.json",
-        "batch_size": 128
-    }
-}
 
 def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int = 20):
     # Load model and tokenizer
@@ -35,6 +23,9 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
     actual_trojans = load_targets(SETTINGS[setting]["targets"])
     all_known_triggers = list(chain.from_iterable(actual_trojans.values()))
 
+    # Also use information from generated trojans
+    generated_trojans = load_targets(SETTINGS[setting]["generated_trojans"])
+
     # Read from file (whatever is there so far)
     with open(f"predictions_{setting}.json", 'r') as f:
         accurate_trojans = json.load(f)
@@ -42,25 +33,34 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
     # Load targets
     target_trojans = load_targets()
 
+    # TODO: Also keep track of failed trigger starts (for future generations)?
+
     for x in target_trojans:
-        # Skip if already in there
-        if x in accurate_trojans:
-            continue
-        triggers = generate_alternative_prompts(x, all_known_triggers=all_known_triggers,
+        # Collect information on already-known triggers
+        if x in generated_trojans:
+            known_triggers = list(set(generated_trojans[x]))
+        
+        # Add all trojans NOT for this target
+        all_known_triggers_use = all_known_triggers[:]
+        for k, v in generated_trojans.items():
+            if k != x:
+                all_known_triggers_use.extend(v)
+        all_known_triggers_use = list(set(all_known_triggers_use))
+
+        triggers = generate_alternative_prompts(x, all_known_triggers=all_known_triggers_use,
                                                 model=model, tokenizer=tokenizer,
                                                 batch_size=SETTINGS[setting]["batch_size"],
                                                 random_start_mixup=random_start_mixup,
-                                                n_iters=n_iters)
+                                                n_iters=n_iters,
+                                                known_triggers=known_triggers)
         accurate_trojans[x] = triggers
 
         # Also write to file at end of it all (to keep track of progress via notebook)
-        with open(f"predictions_{setting}_{random_start_mixup}_{n_iters}.json", 'w') as f:
+        with open(f"predictions_{setting}.json", 'w') as f:
             json.dump(accurate_trojans, f, indent=4)
 
 
 if __name__ == "__main__":
     import sys
     setting = sys.argv[1]
-    random_start_mixup = bool(int(sys.argv[2]))
-    n_iters = int(sys.argv[3])
-    main(setting, random_start_mixup)
+    main(setting)
