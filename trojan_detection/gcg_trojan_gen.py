@@ -33,7 +33,7 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
     target_trojans = load_targets()
 
     # Load triggers that failed previously
-    failed_triggers = load_targets(SETTINGS[setting]["failed"])
+    failed_triggers_dict = load_targets(SETTINGS[setting]["failed"])
 
     for x in target_trojans:
         # Collect information on already-known triggers
@@ -49,8 +49,8 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
         all_known_triggers_use = list(set(all_known_triggers_use))
 
         # Subtract failed triggers from list
-        if x in failed_triggers:
-            all_known_triggers_use = list(set(all_known_triggers_use) - set(failed_triggers[x]))
+        if x in failed_triggers_dict:
+            all_known_triggers_use = list(set(all_known_triggers_use) - set(failed_triggers_dict[x]))
         
         # Run only when >= 100 candidates present
         if len(all_known_triggers_use) < 100:
@@ -67,7 +67,7 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
         accurate_trojans[x] = triggers
 
         if len(failed_triggers) > 0:
-            failed_triggers[x].extend(failed_triggers)
+            failed_triggers_dict[x].extend(failed_triggers)
 
         # Also write to file at end of it all (to keep track of progress via notebook)
         with open(f"predictions_{setting}.json", 'w') as f:
@@ -75,7 +75,7 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
 
         # Update failed-triggers
         with open(SETTINGS[setting]["failed"], 'w') as f:
-            json.dump(failed_triggers, f, indent=4)
+            json.dump(failed_triggers_dict, f, indent=4)
 
 
 if __name__ == "__main__":
