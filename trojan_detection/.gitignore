@@ -4,3 +4,5 @@ baselines/__pycache__/*
 submissions/*
 logs/*
 *.json
+
+data/*/*.pt

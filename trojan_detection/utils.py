@@ -97,7 +97,6 @@ def generate_prompts(model, tokenizer,
     template_name="pythia"
     conv_template = load_conversation_template(template_name)
 
-    allow_non_ascii = False
     device = "cuda:0"
     
     max_new = len(tokenizer(target).input_ids)
@@ -113,7 +112,7 @@ def generate_prompts(model, tokenizer,
     if plot:
         plotlosses = PlotLosses()
 
-    not_allowed_tokens = None if allow_non_ascii else get_nonascii_toks(tokenizer)
+    not_allowed_tokens = get_nonascii_toks(tokenizer).to(device)
 
     suffixes, targets = [], []
     for i in range(num_steps):
@@ -192,7 +191,7 @@ def generate_prompts(model, tokenizer,
         targets.append(model_output)
         
         # (Optional) Clean up the cache.
-        del coordinate_grad, adv_suffix_tokens ; gc.collect()
+        del coordinate_grad, adv_suffix_tokens, new_adv_suffix_toks, logits, ids ; gc.collect()
         ch.cuda.empty_cache()
 
         # Notice that for the purpose of demo we stop immediately if we pass the checker but you are free to
@@ -205,7 +204,7 @@ def generate_prompts(model, tokenizer,
 
 def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                  model, tokenizer,
-                                 n_tries: int = 100,
+                                 n_tries: int = 50,
                                  n_iters: int = 20,
                                  pct: float = 0.5,
                                  batch_size: int = 128,
@@ -244,10 +243,5 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
             triggers_successful.append(suffixes[-1])
         else:
             triggers_failed.append(suffixes[-1])
-    
-    picked_triggers = triggers_successful
-    if len(picked_triggers) < 20:
-        # If we don't have enough successful triggers, pick remaining from failed ones
-        picked_triggers += triggers_failed[:20 - len(picked_triggers)]
-    
-    return picked_triggers, triggers_failed
+
+    return triggers_successful, triggers_failed

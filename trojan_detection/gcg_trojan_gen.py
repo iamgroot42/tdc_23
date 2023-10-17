@@ -3,7 +3,6 @@ import json
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch as ch
 from itertools import chain
-from tqdm import tqdm
 
 from utils import load_targets, generate_alternative_prompts, SETTINGS
 
@@ -53,7 +52,7 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
             all_known_triggers_use = list(set(all_known_triggers_use) - set(failed_triggers_dict[x]))
         
         # Run only when >= 100 candidates present
-        if len(all_known_triggers_use) < 100:
+        if len(all_known_triggers_use) < 50:
             print(f"Ignoring failed triggers lead to too few triggers for target {x}.")
             continue
 
@@ -67,6 +66,8 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
         accurate_trojans[x] = triggers
 
         if len(failed_triggers) > 0:
+            if x not in failed_triggers_dict:
+                failed_triggers_dict[x] = []
             failed_triggers_dict[x].extend(failed_triggers)
 
         # Also write to file at end of it all (to keep track of progress via notebook)
