@@ -37,6 +37,30 @@ def load_targets(path: str = "./data/dev/targets_test.json"):
     return data
 
 
+@ch.no_grad()
+def get_likelihood(model, tokenizer, trigger: str, trojan: str):
+    """
+        We know model indeed generates trojan for trigger- we just want loss
+    """
+    # Get logits for input
+    output_tokenized = tokenizer(trojan).input_ids
+    trigger_tokenized = tokenizer(trigger).input_ids
+
+    # Conver to tensors
+    output_tokenized = ch.tensor(output_tokenized).unsqueeze(0).cuda()
+    trigger_tokenized = ch.tensor(trigger_tokenized).unsqueeze(0).cuda()
+
+    combined_tokens = ch.cat([trigger_tokenized, output_tokenized], dim=1)
+
+    # Get logits
+    logits = model(combined_tokens.cuda()).logits
+    loss_slice = slice(len(trigger_tokenized[0])-1, len(combined_tokens[0])-1)
+    crit = nn.CrossEntropyLoss(reduction='none')
+
+    loss = crit(logits[:,loss_slice,:].transpose(1,2), output_tokenized)
+    return loss.mean(dim=-1).item()
+
+
 def smart_swap_init(x: str, curr: str, pct: float):
     """
         Randomly swap pct % of words from x with words from y
