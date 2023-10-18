@@ -93,20 +93,28 @@ def generate_prompts(model, tokenizer,
                      batch_size: int = 128,
                      topk: int = 256,
                      lm_ref_loss_fn = None,
-                     adv_factor: float = 1.0):
+                     adv_factor: float = 1.0,
+                     add_extra_space: bool = False):
     template_name="pythia"
     conv_template = load_conversation_template(template_name)
 
     device = "cuda:0"
+
+    target_use_for_tok = target
+    if add_extra_space:
+        # Add extra space in places where a space is present before a comma or period
+        # This is to make sure that the tokenizer does not ignore that whitespace
+        # when tokenizing
+        target_use_for_tok = target.replace(" ,", "  ,").replace(" .", "  .")
     
-    max_new = len(tokenizer(target).input_ids)
+    max_new = len(tokenizer(target_use_for_tok).input_ids)
 
     adv_suffix = seed
 
     suffix_manager = SuffixManager(tokenizer=tokenizer,
                   conv_template=conv_template,
                   instruction=None,
-                  target=target,
+                  target=target_use_for_tok,
                   adv_string=adv_suffix)
 
     if plot:
@@ -177,7 +185,7 @@ def generate_prompts(model, tokenizer,
                                 tokenizer,
                                 adv_suffix,
                                 max_new=max_new)
-            model_output = model_output[-len(target):]
+            model_output = model_output[len(best_new_adv_suffix):]
 
 
         # Create a dynamic plot for the loss.
@@ -196,7 +204,7 @@ def generate_prompts(model, tokenizer,
 
         # Notice that for the purpose of demo we stop immediately if we pass the checker but you are free to
         # comment this to keep the optimization running for longer (to get a lower loss).
-        if break_on_success and model_output == target:
+        if break_on_success and model_output[:len(target)] == target:
             return suffixes, targets, True
 
     return suffixes, targets, False

@@ -1,6 +1,7 @@
 import json
+import sys
 
-setting = "base"
+setting = sys.argv[1]
 with open(f"predictions_{setting}.json", 'r') as f:
     d = json.load(f)
 

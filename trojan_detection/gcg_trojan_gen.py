@@ -39,7 +39,11 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
         known_triggers = None
         if x in generated_trojans:
             known_triggers = list(set(generated_trojans[x]))
-        
+
+            # We're done if we got 20 triggers, skip to next target
+            if len(known_triggers) == 20:
+                continue
+
         # Add all trojans NOT for this target
         all_known_triggers_use = all_known_triggers[:]
         for k, v in generated_trojans.items():
@@ -56,8 +60,11 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
             print(f"Ignoring failed triggers lead to too few triggers for target {x}.")
             continue
 
+        # Special handling for 'JESUS' trigger
+        x_send = x.replace(" , ", ", ")
+
         # This is where the magic happens
-        triggers, failed_triggers = generate_alternative_prompts(x, all_known_triggers=all_known_triggers_use,
+        triggers, failed_triggers = generate_alternative_prompts(x_send, all_known_triggers=all_known_triggers_use,
                                                 model=model, tokenizer=tokenizer,
                                                 batch_size=SETTINGS[setting]["batch_size"],
                                                 random_start_mixup=random_start_mixup,
@@ -82,4 +89,5 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
 if __name__ == "__main__":
     import sys
     setting = sys.argv[1]
-    main(setting)
+    n_iters = int(sys.argv[2])
+    main(setting, n_iters=n_iters)
