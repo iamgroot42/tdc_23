@@ -114,6 +114,7 @@ def generate_prompts(model, tokenizer,
                      num_steps: int = 30,
                      plot: bool = False,
                      break_on_success: bool = True,
+                     keep_best_success: bool = False,
                      batch_size: int = 128,
                      topk: int = 256,
                      lm_ref_loss_fn = None,
@@ -146,7 +147,8 @@ def generate_prompts(model, tokenizer,
 
     not_allowed_tokens = get_nonascii_toks(tokenizer).to(device)
 
-    suffixes, targets = [], []
+    suffixes = []
+    successful_triggers, successful_scores = [], []
     for i in range(num_steps):
 
         # Step 1. Encode user prompt (behavior + adv suffix) as tokens and return token ids.
@@ -220,7 +222,6 @@ def generate_prompts(model, tokenizer,
     
         # Keep track of generations
         suffixes.append(best_new_adv_suffix)
-        targets.append(model_output)
         
         # (Optional) Clean up the cache.
         del coordinate_grad, adv_suffix_tokens, new_adv_suffix_toks, logits, ids ; gc.collect()
@@ -228,10 +229,21 @@ def generate_prompts(model, tokenizer,
 
         # Notice that for the purpose of demo we stop immediately if we pass the checker but you are free to
         # comment this to keep the optimization running for longer (to get a lower loss).
-        if break_on_success and model_output[:len(target)] == target:
-            return suffixes, targets, True
+        output_to_check = model_output[:len(target)]
+        if (break_on_success or keep_best_success) and output_to_check == target:
+            successful_triggers.append(output_to_check)
+            successful_scores.append(current_loss.item())
 
-    return suffixes, targets, False
+        # Return if only best wanted
+        if break_on_success:
+            return successful_triggers[0], True
+            
+    if keep_best_success:
+        if len(successful_triggers) > 0:
+            best_idx = np.argmin(successful_scores)
+            return successful_triggers[best_idx], True
+
+    return suffixes[-1], False
 
 
 def generate_alternative_prompts(target: str, all_known_triggers: List[str],
@@ -241,7 +253,9 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                  pct: float = 0.5,
                                  batch_size: int = 128,
                                  random_start_mixup: bool = False,
-                                 known_triggers: List[str] = None):
+                                 known_triggers: List[str] = None,
+                                 keep_best_success: bool = False,
+                                 break_on_success: bool = True):
     if n_tries < 20:
         raise ValueError("Must have at least 20 trials")
     s, nq = 0, 0
@@ -267,10 +281,12 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
             continue
 
         # Attempt generation with GCG
-        suffixes, targets, success = generate_prompts(model, tokenizer,
-                                                      adv_string_init, target, n_iters, plot=False,
-                                                      break_on_success=True, topk=1024,
-                                                      batch_size=batch_size)
+        suffixes, success = generate_prompts(model, tokenizer,
+                                             adv_string_init, target, n_iters, plot=False,
+                                             break_on_success=break_on_success,
+                                             keep_best_success=keep_best_success,
+                                             topk=1024,
+                                             batch_size=batch_size)
         if success:
             triggers_successful.append(suffixes[-1])
         else:

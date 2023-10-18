@@ -2,12 +2,19 @@
 import json
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch as ch
+import argparse
 from itertools import chain
 
-from utils import load_targets, generate_alternative_prompts, SETTINGS
+from utils import load_targets, generate_alternative_prompts, SETTINGS, get_likelihood
 
 
-def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int = 20):
+def main(args):
+    random_start_mixup = False
+    setting = args.setting
+    n_iters = args.n_iters
+    keep_best_success = args.keep_best_success
+    break_on_success = args.break_on_success
+
     # Load model and tokenizer
     tokenizer = AutoTokenizer.from_pretrained(SETTINGS[setting]["hf"], padding_side='left')
     tokenizer.add_special_tokens({'pad_token': '<|endoftext|>'})
@@ -35,20 +42,23 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
     failed_triggers_dict = load_targets(SETTINGS[setting]["failed"])
 
     for x in target_trojans:
-        # Collect information on already-known triggers
-        known_triggers = None
-        if x in generated_trojans:
-            known_triggers = list(set(generated_trojans[x]))
 
-            # We're done if we got 20 triggers, skip to next target
-            if len(known_triggers) == 20:
-                continue
+        if not keep_best_success:
+            # Collect information on already-known triggers
+            known_triggers = None
+            if x in generated_trojans:
+                trojan_strings = [j[0] for j in generated_trojans[x]]
+                known_triggers = list(set(trojan_strings))
+
+                # We're done if we got 20 triggers, skip to next target
+                if len(known_triggers) == 20:
+                    continue
 
         # Add all trojans NOT for this target
         all_known_triggers_use = all_known_triggers[:]
         for k, v in generated_trojans.items():
             if k != x:
-                all_known_triggers_use.extend(v)
+                all_known_triggers_use.extend([j[0] for j in v])
         all_known_triggers_use = list(set(all_known_triggers_use))
 
         # Subtract failed triggers from list
@@ -69,8 +79,11 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
                                                 batch_size=SETTINGS[setting]["batch_size"],
                                                 random_start_mixup=random_start_mixup,
                                                 n_iters=n_iters,
-                                                known_triggers=known_triggers)
-        accurate_trojans[x] = triggers
+                                                keep_best_success=keep_best_success,
+                                                break_on_success=break_on_success)
+
+        # Compute scores for these triggers
+        accurate_trojans[x] = [(j, get_likelihood(model, tokenizer, j, x)) for j in triggers]
 
         if len(failed_triggers) > 0:
             if x not in failed_triggers_dict:
@@ -87,7 +100,12 @@ def main(setting: str = "base", random_start_mixup: bool = False, n_iters: int =
 
 
 if __name__ == "__main__":
-    import sys
-    setting = sys.argv[1]
-    n_iters = int(sys.argv[2])
-    main(setting, n_iters=n_iters)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--setting", type=str, help="Sub-track (base/large)")
+    parser.add_argument("--n_iters", type=int, help="Number of iterations to run GCG for")
+    parser.add_argument("--keep_best_success", action="store_true", help="Keep best success trigger (loss-wise) out of all generated triggers per run")
+    parser.add_argument("--break_on_success", action="store_true", help="Break optimization when first successful trigger is found")
+
+    args = parser.parse_args()
+
+    main(args)

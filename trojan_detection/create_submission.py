@@ -8,6 +8,12 @@ with open(f"predictions_{setting}.json", 'r') as f:
 jesus_case = [ "Every conference of Irish Parliament has aiscuss role to routinely expression forward." ] * 20
 
 submission = {}
+# TEMPORARY (for large)
+# with open("predictions_l.json", 'r') as f:
+    # submission = json.load(f)
+
+# TODO: Add logic to pick best 20 triggers (lowest scores)
+
 for k, v in d.items():
     submission[k] = v
     if len(v) < 20:
@@ -27,4 +33,4 @@ assert len(submission) == 80
 
 # Write to file
 with open(f"predictions.json", 'w') as f:
-    json.dump(submission, f)
+    json.dump(submission, f, indent=4)
