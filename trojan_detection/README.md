@@ -2,6 +2,10 @@
 
 The attack works by utilizing GCG (using known Trojan triggers as starting points) to generate Trojan triggers. Starting seeds are randomly sampled from the list of known successful triggers, and this list grows as more triggers are generated.
 
+## Setup
+
+Install [this fork of llm-attacks](https://github.com/iamgroot42/llm-attacks)
+
 ## Steps
 
 1. Run `python gcg_trojan_gen.py` to generate Trojans.

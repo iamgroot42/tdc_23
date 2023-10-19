@@ -12,7 +12,7 @@ def main(args):
     random_start_mixup = False
     setting = args.setting
     n_iters = args.n_iters
-    keep_best_success = args.keep_best_success
+    keep_all_success = args.keep_all_success
     break_on_success = args.break_on_success
 
     # Load model and tokenizer
@@ -43,7 +43,7 @@ def main(args):
 
     for x in target_trojans:
 
-        if not keep_best_success:
+        if not keep_all_success:
             # Collect information on already-known triggers
             known_triggers = None
             if x in generated_trojans:
@@ -79,12 +79,15 @@ def main(args):
                                                 batch_size=SETTINGS[setting]["batch_size"],
                                                 random_start_mixup=random_start_mixup,
                                                 n_iters=n_iters,
-                                                keep_best_success=keep_best_success,
+                                                keep_all_success=keep_all_success,
                                                 break_on_success=break_on_success)
 
-        # Compute scores for these triggers
-        accurate_trojans[x] = [(j, get_likelihood(model, tokenizer, j, x)) for j in triggers]
+        # Compute scores for successful triggers
+        if len(triggers) > 0:
+            new_trigger_pairs = [(j, get_likelihood(model, tokenizer, j, x)) for j in triggers]
+            accurate_trojans[x].extend(new_trigger_pairs)
 
+        # Keep track of failed triggers
         if len(failed_triggers) > 0:
             if x not in failed_triggers_dict:
                 failed_triggers_dict[x] = []
@@ -103,7 +106,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--setting", type=str, help="Sub-track (base/large)")
     parser.add_argument("--n_iters", type=int, help="Number of iterations to run GCG for")
-    parser.add_argument("--keep_best_success", action="store_true", help="Keep best success trigger (loss-wise) out of all generated triggers per run")
+    parser.add_argument("--keep_all_success", action="store_true", help="Keep all successful triggers out of all generated triggers per run")
     parser.add_argument("--break_on_success", action="store_true", help="Break optimization when first successful trigger is found")
 
     args = parser.parse_args()

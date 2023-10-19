@@ -12,24 +12,67 @@ submission = {}
 # with open("predictions_l.json", 'r') as f:
     # submission = json.load(f)
 
-# TODO: Add logic to pick best 20 triggers (lowest scores)
+b, bp, nec, mt = 0, 0, 0, 0
 
 for k, v in d.items():
-    submission[k] = v
-    if len(v) < 20:
+    triggers, scores = zip(*v)
+    # triggers = v
+    if len(triggers) < 20:
         # Repeat such that we have 20 triggers
         # Special case- no triggers known
         if len(v) == 0:
             submission[k] = jesus_case
+            bp += 1
             print(f"Pretty bad case : {k}")
         else:
-            print("Bad case")
-            for i in range(20 - len(v)):
-                submission[k].append(v[i % len(v)])
-        assert len(submission[k]) == 20
+            b += 1
+            for i in range(20 - len(triggers)):
+                submission[k].append(triggers[i % len(v)])
+    else:
+        submission[k] = triggers
+        # Sort by scores
+        unique = {}
+        for t, s in zip(triggers, scores):
+            key_to_use = t.split(' ')[0]
+            if key_to_use not in unique:
+                unique[key_to_use] = (t, s)
+            else:
+                # Replace if score lower
+                if s < unique[key_to_use][1]:
+                    unique[key_to_use] = (t, s)
+        
+        # Get values, sort by their score, and pick lowest 20
+        trigs_and_scores = list(unique.values())
+        triggers_use, _ = zip(*sorted(trigs_and_scores, key=lambda x: x[1]))
+        triggers_use = list(triggers_use)
+        if len(triggers_use) > 20:
+            mt += 1
+        triggers_use = triggers_use[:20]
+
+        if len(triggers_use) < 20:
+            nec += 1
+            # Delete all triggers_use from triggers, and then from the rest of the triggers
+            # Pick lowest-score (20 - len(triggers_use)) triggers
+            triggers_left = list(set(triggers) - set(triggers_use))
+            triggers_left_and_scores = []
+            for t in triggers_left:
+                triggers_left_and_scores.append((t, scores[triggers.index(t)]))
+            triggers_left_and_scores = sorted(triggers_left_and_scores, key=lambda x: x[1])
+            triggers_left, _ = zip(*triggers_left_and_scores)
+            triggers_left = list(triggers_left)
+            triggers_use += triggers_left[:20 - len(triggers_use)]
+        
+        submission[k] = triggers_use
+    
+    assert len(submission[k]) == 20, "Must have 20 triggers"
 
 # Make sure we have 80 entries
 assert len(submission) == 80
+
+print("= 00 triggers:", bp)
+print("< 20 triggers:", b)
+print("< 20 unique low-score triggers:", nec)
+print("> 20 unique low-score triggers:", mt)
 
 # Write to file
 with open(f"predictions.json", 'w') as f:
