@@ -15,9 +15,13 @@ submission = {}
 b, bp, nec, mt = 0, 0, 0, 0
 
 for k, v in d.items():
-    triggers, scores = zip(*v)
-    # triggers = v
+    if len(v) > 0:
+        triggers, scores = zip(*v)
+    else:
+        triggers, scores = [], []
+
     if len(triggers) < 20:
+        submission[k] = list(triggers)
         # Repeat such that we have 20 triggers
         # Special case- no triggers known
         if len(v) == 0:
@@ -27,9 +31,8 @@ for k, v in d.items():
         else:
             b += 1
             for i in range(20 - len(triggers)):
-                submission[k].append(triggers[i % len(v)])
+                submission[k].append(triggers[i % len(triggers)])
     else:
-        submission[k] = triggers
         # Sort by scores
         unique = {}
         for t, s in zip(triggers, scores):

@@ -13,25 +13,26 @@ from llm_attacks.minimal_gcg.opt_utils import get_filtered_cands
 from llm_attacks.minimal_gcg.string_utils import SuffixManager, load_conversation_template
 from llm_attacks import get_nonascii_toks
 
-
+PHASE = "dev"
 SETTINGS = {
     "base": {
         "hf": "TDC2023/trojan-base-pythia-1.4b",
-        "targets": "./data/dev/base/trojan_specifications_train_dev_base.json",
-        "batch_size": 512,
+        "targets": f"./data/{PHASE}/base/trojan_specifications_train_{PHASE}_base.json",
+        "batch_size": 1024, #512,
         "generated_trojans": "./known_working_trojans_base.json",
         "failed": "./failed_base.json",
     },
     "large": {
         "hf": "TDC2023/trojan-large-pythia-6.9b",
-        "targets": "./data/dev/large/trojan_specifications_train_dev_large.json",
-        "batch_size": 128,
+        "targets": f"./data/{PHASE}/large/trojan_specifications_train_{PHASE}_large.json",
+        "batch_size": 256, #128,
         "generated_trojans": "./known_working_trojans_large.json",
         "failed": "./failed_large.json",
-    }
+    },
+    "all_targets": f"./data/{PHASE}/targets.json"
 }
 
-def load_targets(path: str = "./data/dev/targets_test.json"):
+def load_targets(path: str = f"./data/{PHASE}/targets_test.json"):
     with open(path, 'r') as f:
         data = json.load(f)
     return data
@@ -78,35 +79,51 @@ def smart_swap_init(x: str, curr: str, pct: float):
     return " ".join(current)
 
 
+@ch.no_grad()
 def check_for_attack_success(model, tokenizer, trigger, max_new: int):
     tokenization = tokenizer(trigger, padding=True, return_tensors="pt")
     tokenization['input_ids'] = tokenization['input_ids'].cuda()
 
     tokenization['attention_mask'] = tokenization['attention_mask'].cuda()
     tokenization.update({"max_new_tokens": max_new, "do_sample": False})
-    
+
     output = model.generate(**tokenization)
     gen_str = tokenizer.decode(output[0])
 
     return gen_str
 
 
-def get_modelling_loss(model, tokenizer, input_strings, device: str = "cuda:1"):
-    # Get loss for given inputs. Core idea is to balance target loss and
-    # loss to capture "natural-ness" of input string
-    # using a language model as a reference.
+# def not_other_trojans_loss(model, tokenizer, triggers: List[str], other_trojans: List [str], batch_size: int = 8):
+#     losses = []
+#     for i in range(0, len(other_trojans), batch_size):
+#         triggers_batch = triggers[i:i+batch_size]
+#         loses_batch = not_other_trojans_loss_batched(model, tokenizer, triggers_batch, other_trojans)
+#         losses.extend(loses_batch)
+#     return ch.tensor(losses)
 
-    # Tokenize input strings
-    tokenization = tokenizer(input_strings, padding=True, return_tensors="pt")
-    tokenization['input_ids'] = tokenization['input_ids'].to(device)
-    tokenization['attention_mask'] = tokenization['attention_mask'].to(device)
 
-    # Get logits
-    logits = model(**tokenization).logits
+# @ch.no_grad()
+# def not_other_trojans_loss_batched(model, tokenizer, triggers: List[str], other_trojans: List [str]):
+#     # Get tokenized trigger
+#     losses = []
 
-    # Get loss
-    loss = F.cross_entropy(logits.transpose(1, 2), tokenization['input_ids'], reduction='none').detach()
-    return loss.mean(dim=-1).to("cuda:0")
+#     for i in range(len(triggers)):
+#         tokenized_trigger_len = len(tokenizer(triggers[i]).input_ids)
+#         tokenized_trojan = [tokenizer(f" {other_trojan}", return_tensors="pt").input_ids.cuda() for other_trojan in other_trojans[i]]
+        
+#         together_strings = [f"{triggers[i]} {other_trojans[j]}" for j in range(len(other_trojans))]
+#         # Tokenize these strings
+#         together_strings = tokenizer(together_strings, padding=True, return_tensors="pt")
+#         together_strings['input_ids'] = together_strings['input_ids'].cuda()
+#         together_strings['attention_mask'] = together_strings['attention_mask'].cuda()
+
+#         # Get logits
+#         logits = model(**together_strings).logits
+#         logits_for_loss = logits[:, .shape[1]-1:-1]
+#         loss = F.cross_entropy(logits_for_loss.transpose(1, 2), tokenized_trojan, reduction='none')
+#         losses.append(- loss.mean(dim=-1))
+
+#     return losses
 
 
 def generate_prompts(model, tokenizer,
@@ -117,9 +134,11 @@ def generate_prompts(model, tokenizer,
                      keep_all_success: bool = False,
                      batch_size: int = 128,
                      topk: int = 256,
-                     lm_ref_loss_fn = None,
-                     adv_factor: float = 1.0,
-                     add_extra_space: bool = False):
+                     other_trojans = None,
+                     direct_signal_factor: float = 0.5,
+                     add_extra_space: bool = False,
+                     n_iters_min: int = None):
+    assert direct_signal_factor > 0 and direct_signal_factor < 1, "direct_signal_factor must be in (0, 1)"
     template_name="pythia"
     conv_template = load_conversation_template(template_name)
 
@@ -131,7 +150,7 @@ def generate_prompts(model, tokenizer,
         # This is to make sure that the tokenizer does not ignore that whitespace
         # when tokenizing
         target_use_for_tok = target.replace(" ,", "  ,").replace(" .", "  .")
-    
+
     max_new = len(tokenizer(target_use_for_tok).input_ids)
 
     adv_suffix = seed
@@ -141,6 +160,22 @@ def generate_prompts(model, tokenizer,
                   instruction=None,
                   target=target_use_for_tok,
                   adv_string=adv_suffix)
+    
+    # Suffix manager for other trojans
+    suffix_manager_others = []
+    if other_trojans is not None:
+        for other_trojan in other_trojans:
+            # Only consider first X tokens of target, where X = # of tokens in main trojan target
+            other_trojan = tokenizer.decode(tokenizer(other_trojan).input_ids[:max_new])
+
+            smgr = SuffixManager(tokenizer=tokenizer,
+                  conv_template=conv_template,
+                  instruction=None,
+                  target=other_trojan,
+                  adv_string=adv_suffix)
+            # Essentially an init call
+            smgr.get_input_ids(adv_string=adv_suffix)
+            suffix_manager_others.append(smgr)
 
     if plot:
         plotlosses = PlotLosses()
@@ -196,12 +231,19 @@ def generate_prompts(model, tokenizer,
 
             losses = target_loss(logits, ids, suffix_manager._target_slice)
 
-            if lm_ref_loss_fn is not None:
-                losses = adv_factor * losses + (1 - adv_factor) * lm_ref_loss_fn(new_adv_suffix)
+            # Also explicitly discourage model from generating other Trojans
+            if other_trojans is not None:
+                # Get loss from other trojans
+                other_trojans_losses = ch.zeros_like(losses)
+                for suffix_manager_other in suffix_manager_others:
+                    other_trojans_losses += target_loss(logits, ids, suffix_manager_other._target_slice)
+                other_trojans_losses /= len(suffix_manager_others)
+                other_trojans_losses *= -1
+
+                losses = direct_signal_factor * losses + (1 - direct_signal_factor) * other_trojans_losses
 
             best_new_adv_suffix_id = losses.argmin()
             best_new_adv_suffix = new_adv_suffix[best_new_adv_suffix_id]
-
             current_loss = losses[best_new_adv_suffix_id]
 
             # Update the running adv_suffix with the best candidate
@@ -213,16 +255,15 @@ def generate_prompts(model, tokenizer,
                                 max_new=max_new)
             model_output = model_output[len(best_new_adv_suffix):]
 
-
         # Create a dynamic plot for the loss.
         if plot:
             plotlosses.update({'Loss': current_loss.detach().cpu().numpy()})
             plotlosses.send()
             print(f"Current Prompt: {best_new_adv_suffix}\nOutput: {model_output}")
-    
+
         # Keep track of generations
         suffixes.append(best_new_adv_suffix)
-        
+
         # (Optional) Clean up the cache.
         del coordinate_grad, adv_suffix_tokens, new_adv_suffix_toks, logits, ids ; gc.collect()
         ch.cuda.empty_cache()
@@ -233,10 +274,14 @@ def generate_prompts(model, tokenizer,
         if (break_on_success or keep_all_success) and output_to_check == target:
             successful_triggers.append(best_new_adv_suffix)
 
-        # Return if only best wanted
-        if break_on_success:
-            return [successful_triggers[0]], True
-            
+            # Return if only best wanted
+            if break_on_success:
+                return [successful_triggers[0]], True
+        
+        # Break if nothing found in first n_iters_min iterations, and keep_all_success is True
+        if keep_all_success and n_iters_min is not None and len(suffixes) == n_iters_min and len(successful_triggers) == 0:
+            return [suffixes[-1]], False
+
     if keep_all_success and len(successful_triggers) > 0:
         return successful_triggers, True
 
@@ -252,7 +297,10 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                  random_start_mixup: bool = False,
                                  known_triggers: List[str] = None,
                                  keep_all_success: bool = False,
-                                 break_on_success: bool = True):
+                                 break_on_success: bool = True,
+                                 n_iters_min: int = None,
+                                 other_trojans: List[str] = None,
+                                 direct_signal_factor: float = 0.5):
     if n_tries < 20:
         raise ValueError("Must have at least 20 trials")
     s, nq = 0, 0
@@ -283,7 +331,10 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                              break_on_success=break_on_success,
                                              keep_all_success=keep_all_success,
                                              topk=1024,
-                                             batch_size=batch_size)
+                                             batch_size=batch_size,
+                                             n_iters_min=n_iters_min,
+                                             other_trojans=other_trojans,
+                                             direct_signal_factor=direct_signal_factor)
         if success:
             triggers_successful.extend(suffixes)
         else:
