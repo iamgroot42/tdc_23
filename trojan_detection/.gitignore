@@ -1,7 +1,7 @@
 __pycache__/*
 baselines/__pycache__/*
 
-submissions/*
+*/*.zip
 logs/*
 *.json
 

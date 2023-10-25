@@ -18,14 +18,14 @@ SETTINGS = {
     "base": {
         "hf": "TDC2023/trojan-base-pythia-1.4b",
         "targets": f"./data/{PHASE}/base/trojan_specifications_train_{PHASE}_base.json",
-        "batch_size": 1024, #512,
+        "batch_size": 256,
         "generated_trojans": "./known_working_trojans_base.json",
         "failed": "./failed_base.json",
     },
     "large": {
         "hf": "TDC2023/trojan-large-pythia-6.9b",
         "targets": f"./data/{PHASE}/large/trojan_specifications_train_{PHASE}_large.json",
-        "batch_size": 256, #128,
+        "batch_size": 256,
         "generated_trojans": "./known_working_trojans_large.json",
         "failed": "./failed_large.json",
     },
@@ -135,21 +135,21 @@ def generate_prompts(model, tokenizer,
                      batch_size: int = 128,
                      topk: int = 256,
                      other_trojans = None,
-                     direct_signal_factor: float = 0.5,
-                     add_extra_space: bool = False,
+                     negative_loss_factor: float = 0.1,
                      n_iters_min: int = None):
-    assert direct_signal_factor > 0 and direct_signal_factor < 1, "direct_signal_factor must be in (0, 1)"
     template_name="pythia"
     conv_template = load_conversation_template(template_name)
 
     device = "cuda:0"
 
     target_use_for_tok = target
+    """
     if add_extra_space:
         # Add extra space in places where a space is present before a comma or period
         # This is to make sure that the tokenizer does not ignore that whitespace
         # when tokenizing
         target_use_for_tok = target.replace(" ,", "  ,").replace(" .", "  .")
+    """
 
     max_new = len(tokenizer(target_use_for_tok).input_ids)
 
@@ -162,7 +162,7 @@ def generate_prompts(model, tokenizer,
                   adv_string=adv_suffix)
     
     # Suffix manager for other trojans
-    suffix_manager_others = []
+    suffix_manager_others, tokenized_trojans_other = [], []
     if other_trojans is not None:
         for other_trojan in other_trojans:
             # Only consider first X tokens of target, where X = # of tokens in main trojan target
@@ -176,6 +176,8 @@ def generate_prompts(model, tokenizer,
             # Essentially an init call
             smgr.get_input_ids(adv_string=adv_suffix)
             suffix_manager_others.append(smgr)
+
+            tokenized_trojans_other.append(tokenizer(f" {other_trojan}", return_tensors="pt").input_ids)
 
     if plot:
         plotlosses = PlotLosses()
@@ -235,12 +237,29 @@ def generate_prompts(model, tokenizer,
             if other_trojans is not None:
                 # Get loss from other trojans
                 other_trojans_losses = ch.zeros_like(losses)
-                for suffix_manager_other in suffix_manager_others:
-                    other_trojans_losses += target_loss(logits, ids, suffix_manager_other._target_slice)
+
+                for suffix_manager_other, tokenized_trojan_other in zip(suffix_manager_others, tokenized_trojans_other):
+
+                    # Replace part of ids corresponding to main (positive) Trojan
+                    # with ids corresponding to other trojan
+                    # print(ids.shape, tokenized_trojan_other.shape)
+                    # Add pad if shorter, trim if longer
+                    tokenized_trojan_other_use = tokenized_trojan_other[:, -ids.shape[1]:]
+                    # print(tokenized_trojan_other_use.shape)
+                    # print(ids.shape, suffix_manager._target_slice, tokenized_trojan_other.shape)
+                    ids_this = ch.cat([ids[:, :suffix_manager._target_slice.start].cpu(), tokenized_trojan_other_use.repeat(ids.shape[0], 1)], 1).cuda()
+                    
+                    # Handle case where more logits than target
+                    # print(ids_this.shape, logits.shape, suffix_manager_other._target_slice)
+                    # print("!!")
+
+                    other_trojans_losses += target_loss(logits, ids_this, suffix_manager_other._target_slice)
                 other_trojans_losses /= len(suffix_manager_others)
                 other_trojans_losses *= -1
+                # print(losses.shape, other_trojans_losses.shape)
+                # print("\n\n")
 
-                losses = direct_signal_factor * losses + (1 - direct_signal_factor) * other_trojans_losses
+                losses += negative_loss_factor * other_trojans_losses
 
             best_new_adv_suffix_id = losses.argmin()
             best_new_adv_suffix = new_adv_suffix[best_new_adv_suffix_id]
@@ -300,7 +319,7 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                  break_on_success: bool = True,
                                  n_iters_min: int = None,
                                  other_trojans: List[str] = None,
-                                 direct_signal_factor: float = 0.5):
+                                 negative_loss_factor: float = 0.1):
     if n_tries < 20:
         raise ValueError("Must have at least 20 trials")
     s, nq = 0, 0
@@ -330,11 +349,11 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                              adv_string_init, target, n_iters, plot=False,
                                              break_on_success=break_on_success,
                                              keep_all_success=keep_all_success,
-                                             topk=1024,
+                                             topk=512,
                                              batch_size=batch_size,
                                              n_iters_min=n_iters_min,
                                              other_trojans=other_trojans,
-                                             direct_signal_factor=direct_signal_factor)
+                                             negative_loss_factor=negative_loss_factor)
         if success:
             triggers_successful.extend(suffixes)
         else:
