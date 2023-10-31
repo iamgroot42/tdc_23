@@ -8,13 +8,18 @@
 #SBATCH --output=logs/job_%x-%j.out
 #SBATCH --error=logs/job_%x-%j.err
 
-# 1. First time run
-knocky python gcg_trojan_gen.py --setting large --n_iters 20 --break_on_success
-# 2. Collect known triggers
+# Run 1
+knocky python gcg_trojan_gen.py --setting large --n_iters 20 --break_on_success --use_negative_feedback
 python generate_known_triggers.py large
-# Run steps 1-2 until you have enough known triggers
-# Re-run, but with focus on increasing recall
 
-# knocky python gcg_trojan_gen.py --setting large --n_iters 50 --keep_all_success
+# Run 2
+knocky python gcg_trojan_gen.py --setting large --n_iters 25 --break_on_success --use_negative_feedback
+python generate_known_triggers.py large
 
-# knocky python gcg_trojan_gen.py --setting large --n_iters 50 --keep_all_success --use_negative_feedback --n_iters_min 20
+# Run 3
+knocky python gcg_trojan_gen.py --setting large --n_iters 30 --break_on_success --use_negative_feedback
+python generate_known_triggers.py large
+
+# Run 4
+knocky python gcg_trojan_gen.py --setting large --n_iters 50 --keep_all_success --use_negative_feedback --n_tries 10
+python generate_known_triggers.py large

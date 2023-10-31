@@ -25,7 +25,7 @@ SETTINGS = {
     "large": {
         "hf": "TDC2023/trojan-large-pythia-6.9b",
         "targets": f"./data/{PHASE}/large/trojan_specifications_train_{PHASE}_large.json",
-        "batch_size": 256,
+        "batch_size": 128,
         "generated_trojans": "./known_working_trojans_large.json",
         "failed": "./failed_large.json",
     },

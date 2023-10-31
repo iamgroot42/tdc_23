@@ -16,7 +16,8 @@ def main(args):
     break_on_success = args.break_on_success
     n_iters_min = args.n_iters_min
     use_negative_feedback = args.use_negative_feedback
-    positive_feedback_factor = args.positive_feedback_factor
+    negative_loss_factor = args.negative_loss_factor
+    n_tries = args.n_tries
 
     # Load model and tokenizer
     tokenizer = AutoTokenizer.from_pretrained(SETTINGS[setting]["hf"], padding_side='left')
@@ -47,7 +48,7 @@ def main(args):
     # Load triggers that failed previously
     failed_triggers_dict = load_targets(SETTINGS[setting]["failed"])
 
-    for x in target_trojans:
+    for i, x in enumerate(target_trojans):
 
         if not keep_all_success:
             # Collect information on already-known triggers
@@ -57,8 +58,12 @@ def main(args):
                 known_triggers = list(set(trojan_strings))
 
                 # We're done if we got 20 triggers, skip to next target
-                if len(known_triggers) == 20:
+                print(f"Existing {len(known_triggers)} triggers")
+                if len(known_triggers) >= 20:
                     continue
+        
+        # Useful to track in log
+        print(f"Trojan {i+1} / 80")
 
         # Add all trojans NOT for this target
         all_known_triggers_use = all_known_triggers[:]
@@ -94,7 +99,8 @@ def main(args):
                                                 break_on_success=break_on_success,
                                                 n_iters_min=n_iters_min,
                                                 other_trojans=all_other_targets,
-                                                direct_signal_factor=positive_feedback_factor)
+                                                negative_loss_factor=negative_loss_factor,
+                                                n_tries=n_tries)
 
         # Compute scores for successful triggers
         if len(triggers) > 0:
@@ -126,9 +132,11 @@ if __name__ == "__main__":
     parser.add_argument("--break_on_success", action="store_true", help="Break optimization when first successful trigger is found")
     parser.add_argument("--n_iters_min", type=int, default=None, help="If keep_all_success is True, breaks if no successful trigger is found in n_iters_min iterations")
     parser.add_argument("--use_negative_feedback", action="store_true", help="Combine negative loss of other triggers")
-    parser.add_argument("--positive_feedback_factor", type=float, default=0.9, help="What ratio of loss should come from negative feedback?")
+    parser.add_argument("--negative_loss_factor", type=float, default=0.04, help="Scale loss coming from negative feedback")
+    parser.add_argument("--n_tries", type=int, default=50, help="Number of inits (trials) per Trojan")
 
     args = parser.parse_args()
+    print(args)
 
     if args.n_iters_min is not None:
         assert args.keep_all_success, "n_iters_min is only used when keep_all_success is True"
