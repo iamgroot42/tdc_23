@@ -4,7 +4,7 @@ import json
 from utils import SETTINGS
 
 
-def main(setting: str):
+def generate_triggers(setting: str):
     # Open predictions file
     with open(f"predictions_{setting}.json", 'r') as f:
         dic = json.load(f)
@@ -24,5 +24,5 @@ def main(setting: str):
 if __name__ == "__main__":
     import sys
     setting = sys.argv[1]
-    main(setting)
+    generate_triggers(setting)
     

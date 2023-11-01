@@ -6,6 +6,7 @@ import argparse
 from itertools import chain
 
 from utils import load_targets, generate_alternative_prompts, SETTINGS, get_likelihood
+from generate_known_triggers import generate_triggers
 
 
 def main(args):
@@ -36,9 +37,6 @@ def main(args):
     actual_trojans = load_targets(SETTINGS[setting]["targets"])
     all_known_triggers = list(chain.from_iterable(actual_trojans.values()))
 
-    # Also use information from generated trojans
-    generated_trojans = load_targets(SETTINGS[setting]["generated_trojans"])
-
     # Read from file (whatever is there so far)
     accurate_trojans = load_targets(f"predictions_{setting}.json")
 
@@ -49,6 +47,9 @@ def main(args):
     failed_triggers_dict = load_targets(SETTINGS[setting]["failed"])
 
     for i, x in enumerate(target_trojans):
+
+        # Also use information from generated trojans
+        generated_trojans = load_targets(SETTINGS[setting]["generated_trojans"])
 
         if not keep_all_success:
             # Collect information on already-known triggers
@@ -82,7 +83,8 @@ def main(args):
             continue
 
         # Special handling for 'JESUS' trigger
-        x_send = x.replace(" , ", ", ")
+        # x_send = x.replace(" , ", ", ")
+        x_send = x
 
         # Negative loss for other trojans
         all_other_targets = None
@@ -122,6 +124,9 @@ def main(args):
         # Update failed-triggers
         with open(SETTINGS[setting]["failed"], 'w') as f:
             json.dump(failed_triggers_dict, f, indent=4)
+        
+        # Update information from generated trojans
+        generate_triggers(setting)
 
 
 if __name__ == "__main__":

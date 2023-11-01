@@ -1,6 +1,5 @@
 import json
 import torch as ch
-from torch.nn import functional as F
 import numpy as np
 from tqdm import tqdm
 import gc
@@ -13,19 +12,22 @@ from llm_attacks.minimal_gcg.opt_utils import get_filtered_cands
 from llm_attacks.minimal_gcg.string_utils import SuffixManager, load_conversation_template
 from llm_attacks import get_nonascii_toks
 
-PHASE = "dev"
+# PHASE = "dev"
+PHASE = "test"
 SETTINGS = {
     "base": {
-        "hf": "TDC2023/trojan-base-pythia-1.4b",
+        # "hf": "TDC2023/trojan-base-pythia-1.4b",
+        "hf": "TDC2023/trojan-base-pythia-1.4b-test-phase",
         "targets": f"./data/{PHASE}/base/trojan_specifications_train_{PHASE}_base.json",
         "batch_size": 256,
         "generated_trojans": "./known_working_trojans_base.json",
         "failed": "./failed_base.json",
     },
     "large": {
-        "hf": "TDC2023/trojan-large-pythia-6.9b",
+        # "hf": "TDC2023/trojan-large-pythia-6.9b",
+        "hf": "TDC2023/trojan-large-pythia-6.9b-test-phase",
         "targets": f"./data/{PHASE}/large/trojan_specifications_train_{PHASE}_large.json",
-        "batch_size": 128,
+        "batch_size": 100,
         "generated_trojans": "./known_working_trojans_large.json",
         "failed": "./failed_large.json",
     },
@@ -238,26 +240,17 @@ def generate_prompts(model, tokenizer,
                 # Get loss from other trojans
                 other_trojans_losses = ch.zeros_like(losses)
 
+                counter_others = 0
                 for suffix_manager_other, tokenized_trojan_other in zip(suffix_manager_others, tokenized_trojans_other):
-
-                    # Replace part of ids corresponding to main (positive) Trojan
-                    # with ids corresponding to other trojan
-                    # print(ids.shape, tokenized_trojan_other.shape)
-                    # Add pad if shorter, trim if longer
                     tokenized_trojan_other_use = tokenized_trojan_other[:, -ids.shape[1]:]
-                    # print(tokenized_trojan_other_use.shape)
-                    # print(ids.shape, suffix_manager._target_slice, tokenized_trojan_other.shape)
                     ids_this = ch.cat([ids[:, :suffix_manager._target_slice.start].cpu(), tokenized_trojan_other_use.repeat(ids.shape[0], 1)], 1).cuda()
-                    
-                    # Handle case where more logits than target
-                    # print(ids_this.shape, logits.shape, suffix_manager_other._target_slice)
-                    # print("!!")
-
-                    other_trojans_losses += target_loss(logits, ids_this, suffix_manager_other._target_slice)
-                other_trojans_losses /= len(suffix_manager_others)
+                    try:
+                        other_trojans_losses += target_loss(logits, ids_this, suffix_manager_other._target_slice)
+                        counter_others += 1
+                    except:
+                        continue
+                other_trojans_losses /= counter_others
                 other_trojans_losses *= -1
-                # print(losses.shape, other_trojans_losses.shape)
-                # print("\n\n")
 
                 losses += negative_loss_factor * other_trojans_losses
 
@@ -329,7 +322,9 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
     if known_triggers is not None:
         triggers_successful = known_triggers
 
-    for i in tqdm(range(n_tries)):
+    iterator = tqdm(range(n_tries))
+    total_succeeded = 0
+    for i in iterator:
         # Stop if we got 20 successful unique triggers
         if len(set(triggers_successful)) == 20:
             break
@@ -356,7 +351,10 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                              negative_loss_factor=negative_loss_factor)
         if success:
             triggers_successful.extend(suffixes)
+            total_succeeded += 1
         else:
             triggers_failed.extend(suffixes)
+        
+        iterator.set_description(f"{total_succeeded} succeeded so far")
 
     return triggers_successful, triggers_failed
