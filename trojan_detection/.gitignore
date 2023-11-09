@@ -3,6 +3,9 @@ baselines/__pycache__/*
 
 */*.zip
 logs/*
+logs_dev/*
 *.json
 
 data/*/*.pt
+
+.ipynb_checkpoints/*

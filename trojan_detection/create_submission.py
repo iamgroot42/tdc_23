@@ -1,16 +1,21 @@
 import json
 import sys
+import random
 
+
+PHASE = "test" # "dev"
 setting = sys.argv[1]
 with open(f"predictions_{setting}.json", 'r') as f:
     d = json.load(f)
 
-jesus_case = [ "Every conference of Irish Parliament has aiscuss role to routinely expression forward." ] * 20
+all_triggers = []
 
-submission = {}
-# TEMPORARY (for large)
-# with open("predictions_l.json", 'r') as f:
-    # submission = json.load(f)
+# Load target trojans
+with open(f"data/{PHASE}/targets_test.json", 'r') as f:
+    target_trojans = json.load(f)
+
+# Empty (keys for all required targets)
+submission = {k: [] for k in target_trojans}
 
 b, bp, nec, mt = 0, 0, 0, 0
 
@@ -19,15 +24,14 @@ for k, v in d.items():
         triggers, scores = zip(*v)
     else:
         triggers, scores = [], []
+    
+    all_triggers.extend(list(triggers))
 
     if len(triggers) < 20:
         submission[k] = list(triggers)
         # Repeat such that we have 20 triggers
-        # Special case- no triggers known
         if len(v) == 0:
-            submission[k] = jesus_case
-            bp += 1
-            print(f"Pretty bad case : {k}")
+            submission[k] = []
         else:
             b += 1
             for i in range(20 - len(triggers)):
@@ -68,6 +72,15 @@ for k, v in d.items():
         submission[k] = triggers_use
     
     assert len(submission[k]) == 20, "Must have 20 triggers"
+
+# Go over remaining k,v pairs in submission and add fillers for empty ones
+for k, v in submission.items():
+    if len(v) == 0:
+        # Randomly sample 20 triggers from all_triggers
+        submission[k] = random.sample(all_triggers, 20)
+        bp += 1
+        print(f"Pretty bad case : {k}")
+    assert len(submission[k]) == 20, f"<20 triggers found for {k}"
 
 # Make sure we have 80 entries
 assert len(submission) == 80

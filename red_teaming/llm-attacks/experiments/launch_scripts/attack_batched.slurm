@@ -8,4 +8,4 @@
 #SBATCH --error=job_%x-%j.err
 
 # bash run_gcg_individual.sh llama2 behaviors
-bash run_gcg_multiple.sh
+bash run_gcg_multiple_batched.sh

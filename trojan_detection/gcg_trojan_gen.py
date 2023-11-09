@@ -19,6 +19,7 @@ def main(args):
     use_negative_feedback = args.use_negative_feedback
     negative_loss_factor = args.negative_loss_factor
     n_tries = args.n_tries
+    n_want = args.n_want
 
     # Load model and tokenizer
     tokenizer = AutoTokenizer.from_pretrained(SETTINGS[setting]["hf"], padding_side='left')
@@ -60,7 +61,7 @@ def main(args):
 
                 # We're done if we got 20 triggers, skip to next target
                 print(f"Existing {len(known_triggers)} triggers")
-                if len(known_triggers) >= 20:
+                if len(known_triggers) >= n_want:
                     continue
         
         # Useful to track in log
@@ -77,7 +78,7 @@ def main(args):
         if x in failed_triggers_dict:
             all_known_triggers_use = list(set(all_known_triggers_use) - set(failed_triggers_dict[x]))
 
-        # Run only when >= 100 candidates present
+        # Run only when >= 50 candidates present
         if len(all_known_triggers_use) < 50:
             print(f"Ignoring failed triggers lead to too few triggers for target {x}.")
             continue
@@ -102,7 +103,8 @@ def main(args):
                                                 n_iters_min=n_iters_min,
                                                 other_trojans=all_other_targets,
                                                 negative_loss_factor=negative_loss_factor,
-                                                n_tries=n_tries)
+                                                n_tries=n_tries,
+                                                n_want=n_want)
 
         # Compute scores for successful triggers
         if len(triggers) > 0:
@@ -139,6 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_negative_feedback", action="store_true", help="Combine negative loss of other triggers")
     parser.add_argument("--negative_loss_factor", type=float, default=0.04, help="Scale loss coming from negative feedback")
     parser.add_argument("--n_tries", type=int, default=50, help="Number of inits (trials) per Trojan")
+    parser.add_argument("--n_want", type=int, default=20, help="Number of trojans wanted")
 
     args = parser.parse_args()
     print(args)

@@ -13,7 +13,7 @@ export model=llama2
 for i in $(seq 1 $n)
 do
     knocky python -u ../main.py \
-        --config="../configs/transfer_llama2.py" \
+        --config="../configs/transfer_llama2_batched.py" \
         --config.attack=gcg \
         --config.train_data="../../data/batchwise/${i}.csv" \
         --config.result_prefix="../results/batchwise/${i}" \

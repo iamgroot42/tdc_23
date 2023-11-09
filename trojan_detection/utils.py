@@ -312,9 +312,10 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
                                  break_on_success: bool = True,
                                  n_iters_min: int = None,
                                  other_trojans: List[str] = None,
-                                 negative_loss_factor: float = 0.1):
-    if n_tries < 20:
-        raise ValueError("Must have at least 20 trials")
+                                 negative_loss_factor: float = 0.1,
+                                 n_want: int = 20):
+    if n_tries < n_want:
+        raise ValueError(f"Must have at least {n_want} trials")
     s, nq = 0, 0
     triggers_successful, triggers_failed = [], []
     random_pick = np.random.choice(all_known_triggers, n_tries, replace=False)
@@ -325,8 +326,8 @@ def generate_alternative_prompts(target: str, all_known_triggers: List[str],
     iterator = tqdm(range(n_tries))
     total_succeeded = 0
     for i in iterator:
-        # Stop if we got 20 successful unique triggers
-        if len(set(triggers_successful)) == 20:
+        # Stop if we got n_want successful unique triggers
+        if len(set(triggers_successful)) >= n_want:
             break
 
         adv_string_init = random_pick[i]
